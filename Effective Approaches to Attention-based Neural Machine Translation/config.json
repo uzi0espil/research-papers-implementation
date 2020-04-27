@@ -1,0 +1,13 @@
+{
+    "dataset":{
+        "url": "http://storage.googleapis.com/download.tensorflow.org/data/fra-eng.zip",
+        "batch_size": 32,
+        "num_examples": null
+    },
+    "model": {
+        "units": 1024,
+        "embedding_dim": 256,
+        "epochs": 20,
+        "bidirectional": true
+    }
+}
