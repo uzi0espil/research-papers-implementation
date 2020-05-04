@@ -1,0 +1,16 @@
+{
+    "dataset": {
+        "url": "http://storage.googleapis.com/download.tensorflow.org/data/fra-eng.zip",
+        "num_examples": null,
+        "batch_size": 32,
+        "top_common_words": 10000
+    },
+    "model": {
+        "N": 6,
+        "model_depth": 512,
+        "num_heads": 8,
+        "dff": 2048,
+        "epochs": 15,
+        "dropout_rate": 0.1
+    }
+}
