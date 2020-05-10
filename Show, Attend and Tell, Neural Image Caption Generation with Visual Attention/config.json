@@ -2,7 +2,7 @@
     "dataset": {
         "annotation_url": "http://images.cocodataset.org/annotations/annotations_trainval2014.zip",
         "images_url": "http://images.cocodataset.org/zips/train2014.zip",
-        "num_examples": 30000,
+        "num_examples": 1000,
         "batch_size": 64,
         "top_common_words": 5000
     },
