@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 
+
 def progress_bar(iteration, total, size=30):
     running = iteration < total
     c = ">" if running else "="
@@ -7,6 +8,7 @@ def progress_bar(iteration, total, size=30):
     fmt = "{{:-{}d}}/{{}} [{{}}]".format(len(str(total)))
     params = [iteration, total, "=" * p + c + "." * (size - p - 1)]
     return fmt.format(*params)
+
 
 def print_status_bar(iteration, total, loss, metrics=None, size=30):
     metrics = " - ".join(["{}: {:.4f}".format(m.name, m.result())

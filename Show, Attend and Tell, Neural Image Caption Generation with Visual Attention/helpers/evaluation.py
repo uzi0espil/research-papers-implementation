@@ -23,6 +23,7 @@ evaluation metrics for machine translation. COLING 2004.
 
 import collections
 import math
+import numpy as np
 
 
 def _get_ngrams(segment, max_order):
@@ -45,7 +46,7 @@ def _get_ngrams(segment, max_order):
   return ngram_counts
 
 
-def compute_bleu(reference_corpus, translation_corpus, padding_indices,
+def compute_bleu(reference_corpus, translation_corpus, padding_indices=None,
                   max_order=4, smooth=False, eps=1e7):
   """Computes BLEU score of translated segments against one or more references.
 
@@ -54,6 +55,7 @@ def compute_bleu(reference_corpus, translation_corpus, padding_indices,
         reference should be tokenized into a list of tokens.
     translation_corpus: list of translations to score. Each translation
         should be tokenized into a list of tokens.
+    padding_indices: is when to ignore the padding tokens.
     max_order: Maximum n-gram order to use when computing BLEU score.
     smooth: Whether or not to apply Lin et al. 2004 smoothing.
 
@@ -61,6 +63,8 @@ def compute_bleu(reference_corpus, translation_corpus, padding_indices,
     3-Tuple with the BLEU score, n-gram precisions, geometric mean of n-gram
     precisions and brevity penalty.
   """
+  if padding_indices is None:
+        padding_indices = np.full((len(reference_corpus),), None)
   matches_by_order = [0] * max_order
   possible_matches_by_order = [0] * max_order
   reference_length = 0
