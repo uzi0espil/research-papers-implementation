@@ -7,7 +7,7 @@
         "top_common_words": 20000
     },
     "model": {
-        "epochs": 10,
+        "epochs": 25,
         "embedding_dim": 512,
         "units": 1024,
         "dropout_rate": 0.15,
