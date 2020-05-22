@@ -12,8 +12,8 @@ class CNNEncoder(tf.keras.layers.Layer):
             layer.trainable = False
         self.fc = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(units, activation="relu"))
         
-    def call(self, X):
-        X = self.base_model(X)
+    def call(self, X, training=None):
+        X = self.base_model(X, training=training)
         # merged the width and hight of feature map into a vector. so the reshape will convert (None, 8, 8, 2048) to (None, 64, 2048)
         X = self.reshape(X)
         return self.fc(X)
@@ -43,35 +43,38 @@ class BahdanauAttention(tf.keras.layers.Layer):
 
 class LuongAttention(tf.keras.layers.Layer):
     
-    def __init__(self, units):
+    def __init__(self, units, dropout_rate=None):
         super(LuongAttention, self).__init__()
         self.dot = tf.keras.layers.Dot((2, 2))
+        self.dropout = tf.keras.layers.Dropout(dropout_rate)
         self.fc = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(units, activation='tanh'))
         
-    def call(self, dec_outputs, enc_outputs):
+    def call(self, dec_outputs, enc_outputs, training):
         scores = self.dot([dec_outputs, enc_outputs])
         
         attention_weights = tf.nn.softmax(scores)
         
-        context_vector = tf.keras.layers.dot([attention_weights, enc_outputs], axes=(2,1))
-        y = tf.keras.layers.concatenate([context_vector, dec_outputs])
-        y = self.fc(y)
+        # apply dropout if any.
+        attention_weights = self.dropout(attention_weights, training=training)
         
-        return y, attention_weights
+        context_vector = tf.keras.layers.dot([attention_weights, enc_outputs], axes=(2,1))
+        
+        return context_vector, attention_weights
     
 
 class RNNDecoder(tf.keras.layers.Layer):
     
     attentions = ["additive", "multiplicative"]
     
-    def __init__(self, vocab_size, embedding_dim, units, attention="additive", mask=True):
+    def __init__(self, vocab_size, embedding_dim, units, attention="additive", 
+                 mask=True, activation="linear", dropout_rate=None):
         super(RNNDecoder, self).__init__()
         if attention is not None and attention.lower() not in self.attentions:
             raise ValueError("attention value is not correct, should be either {} or None".format(attentions))
         elif attention.lower() == "additive":
             self.attention = BahdanauAttention(units)
         elif attention.lower() == "multiplicative":
-            self.attention = LuongAttention(units)
+            self.attention = LuongAttention(units, dropout_rate=dropout_rate)
         else:
             self.attention = None
         
@@ -79,10 +82,12 @@ class RNNDecoder(tf.keras.layers.Layer):
         self.embedding = tf.keras.layers.Embedding(vocab_size, embedding_dim, mask_zero=mask)
         self.lstm = tf.keras.layers.LSTM(units, return_state=True, return_sequences=True)
         
-        self.fc1 = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(units))
+        self.dropout = tf.keras.layers.Dropout(dropout_rate)
+        
+        self.fc1 = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(units, activation=activation))
         self.fc2 = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(vocab_size, activation="softmax"))
         
-    def call(self, x, hidden, enc_output):
+    def call(self, x, hidden, enc_output, training=None):
         attention_weights = None
         x = self.embedding(x)
         
@@ -95,10 +100,14 @@ class RNNDecoder(tf.keras.layers.Layer):
         states = [h_states, c_states]
         
         if isinstance(self.attention, LuongAttention):
-            x, attention_weights = self.attention(x, enc_output)
+            context_vector, attention_weights = self.attention(x, enc_output, training)
+            x = tf.keras.layers.concatenate([context_vector, x])
         
         # shape == (batch_size, max_length, hidden_size)
         x = self.fc1(x)
+        
+        # dropout
+        x = self.dropout(x)
         
         # output shape == (batch_size * max_length, vocab)
         x = self.fc2(x)
@@ -114,16 +123,19 @@ class ImageCaption(tf.keras.Model):
     Model that encapsulate Encoder and Decoder layers. Supports only Luong Attention.
     """
     
-    def __init__(self, inception_shape, target_vocab_size, embedding_dim, units):
+    def __init__(self, inception_shape, target_vocab_size, embedding_dim, units, dropout_rate=None):
         super(ImageCaption, self).__init__()
         self.encoder = CNNEncoder(units, inception_shape)
-        self.decoder = RNNDecoder(target_vocab_size, embedding_dim, units, attention="multiplicative")
+        self.decoder = RNNDecoder(target_vocab_size, embedding_dim, units, 
+                                  attention="multiplicative", activation="tanh",
+                                  dropout_rate=dropout_rate)
         
-    def call(self, X, **kwargs):
+    def call(self, X, training=None, **kwargs):
         enc_input, dec_input = X
         
-        enc_output = self.encoder(enc_input)
+        enc_output = self.encoder(enc_input, training=training)
         
-        decoder_output, _, attention_weights = self.decoder(dec_input, None, enc_output)
+        decoder_output, _, attention_weights = self.decoder(dec_input, None, enc_output, 
+                                                            training=training)
         
         return decoder_output, attention_weights

@@ -2,14 +2,15 @@
     "dataset": {
         "annotation_url": "http://images.cocodataset.org/annotations/annotations_trainval2014.zip",
         "images_url": "http://images.cocodataset.org/zips/train2014.zip",
-        "num_examples": 1000,
+        "num_examples": null,
         "batch_size": 64,
-        "top_common_words": 5000
+        "top_common_words": 20000
     },
     "model": {
-        "epochs": 20,
-        "embedding_dim": 256,
-        "units": 512,
-        "attention": "additive"
+        "epochs": 25,
+        "embedding_dim": 512,
+        "units": 1024,
+        "dropout_rate": 0.15,
+        "attention": "multiplicative"
     }
 }
