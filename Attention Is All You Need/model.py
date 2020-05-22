@@ -250,12 +250,81 @@ class Transformer(tf.keras.Model):
         
         self.dense = tf.keras.layers.Dense(target_vocab_size, activation="softmax")
         
-    def call(self, x, y, training, enc_padding_mask, look_ahead_mask, dec_padding_mask):
+    def call(self, X, training=None, **kwargs):
+        enc_x, dec_x = X
+        # create the masks
+        enc_padding_mask, look_ahead_mask, dec_padding_mask = self.create_masks(enc_x, dec_x)
+        # run encoder
+        enc_y = self.encoder(enc_x, training, enc_padding_mask)
+        # run decoder
+        dec_y, atten_weights = self.decoder(dec_x, enc_y, training, look_ahead_mask, dec_padding_mask)
+        # predict
+        y = self.dense(dec_y)
+        return y, atten_weights
+    
+    def create_padding_mask(self, seq):
+        seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
+
+        # add extra dimensions to add the padding
+        # to the attention logits.
+        return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, 1, seq_len)
+
+    def create_look_ahead_mask(self, size):
+        upper_triangle_zeros = tf.linalg.band_part(tf.ones((size, size)), -1, 0)
+        lower_traingle_diagonal_zeros = 1 - upper_triangle_zeros
+        return lower_traingle_diagonal_zeros
+
+    def create_masks(self, inp, tar):
+        # Encoder padding mask
+        enc_padding_mask = self.create_padding_mask(inp)
+
+        # Used in the 2nd attention block in the decoder.
+        # This padding mask is used to mask the encoder outputs.
+        dec_padding_mask = self.create_padding_mask(inp)
+
+        # Used in the 1st attention block in the decoder.
+        # It is used to pad and mask future tokens in the input received by 
+        # the decoder.
+        look_ahead_mask = self.create_look_ahead_mask(tf.shape(tar)[1])
+        dec_target_padding_mask = self.create_padding_mask(tar)
+        combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
+
+        return enc_padding_mask, combined_mask, dec_padding_mask
+
+    
+class TransformerV2(Transformer):
+    
+    def __init__(self, *args, **kwargs):
+        super(TransformerV2, self).__init__(*args, **kwargs)
+    
+    def call(self, X, training=None, **kwargs):
+        enc_x, dec_x = X
+        # create the masks
+        enc_padding_mask, look_ahead_mask, dec_padding_mask = self.create_masks(enc_x, dec_x)
+        # run encoder
+        enc_y = self.encoder(enc_x, training, enc_padding_mask)
+        # run decoder
+        dec_y, _ = self.decoder(dec_x, enc_y, training, look_ahead_mask, dec_padding_mask)
+        # predict
+        y = self.dense(dec_y)
+        return y
+
+
+class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+    def __init__(self, d_model, warmup_steps=4000):
+        super(CustomSchedule, self).__init__()
         
-        enc_output = self.encoder(x, training, enc_padding_mask)
+        self.d_model = d_model
+        self.d_model = tf.cast(self.d_model, tf.float32)
         
-        dec_output, attn_dict = self.decoder(y, enc_output, training, look_ahead_mask, dec_padding_mask)
+        self.warmup_steps = warmup_steps
         
-        y = self.dense(dec_output)
+    def __call__(self, step):
+        arg1 = tf.math.rsqrt(step)
+        arg2 = step * (self.warmup_steps ** -1.5)
         
-        return y, attn_dict
+        return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
+    
+    def get_config(self):
+        return {"d_model": self.d_model, "warmup_steps": self.warmup_steps}
+        
