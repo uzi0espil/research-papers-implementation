@@ -74,20 +74,17 @@ class Discriminator(tf.keras.layers.Layer, ABC):
 
 
 class TNCModel(tf.keras.Model, ABC):
-    """
-    todo: - better initialization for Conv layers.
-    """
 
     def __init__(self,
                  i_shape, latent_size,
-                 n_filters_per_block, kernel_size, strides, encoder_dropout, unlabeled_weight,
-                 disc_neurons, disc_dropout):
+                 n_block_filters, kernel_size, unlabeled_weight,
+                 disc_neurons, strides=1, dropout=0.2):
         super(TNCModel, self).__init__()
         self.latent_size = latent_size
         self.i_shape = i_shape
         self.unlabeled_weight = unlabeled_weight
-        self.encoder = Encoder(latent_size, n_filters_per_block, kernel_size, strides, encoder_dropout)
-        self.disc = Discriminator(disc_neurons, disc_dropout)
+        self.encoder = Encoder(latent_size, n_block_filters, kernel_size, strides, dropout)
+        self.disc = Discriminator(disc_neurons, dropout)
 
         # additional metrics
         self.contrastive_loss = None
@@ -109,12 +106,22 @@ class TNCModel(tf.keras.Model, ABC):
         return self.encoder(inputs, **kwargs)
 
     def _contrastive_loss(self, y_p, y_n, sample_weight=None):
+        """
+        Loss function based on Positive Unlabeled debaising technique where we treat the 
+        negative samples as neutral samples where it can be seen as negative samples that 
+        have positive sample traits (or might be drawn from the same distribution)
+        
+        The first term is about computing the cross-entropy of the positive samples.
+        The second term is computing the cross-entropy of negative samples, once they are negative
+        and once they are positive and weight them using `unlabeled_weight`.
+        """
         y_true_p, y_pred_p = y_p
         y_true_n, y_pred_n = y_n
 
         p_loss = self.compiled_loss(y_p, y_pred_p, sample_weight=sample_weight)
+        # compute once that they are negatives and once that they are positives
         n_loss = self.compiled_loss(y_n, y_pred_n, sample_weight=sample_weight)
-        n_loss_u = self.compiled_loss(y_p, y_pred_n, sample_weight=sample_weight)
+        n_loss_u = self.compiled_loss(y_n, y_pred_p, sample_weight=sample_weight)
 
         return (p_loss + self.unlabeled_weight * n_loss_u + (1 - self.unlabeled_weight) * n_loss) / 2
 

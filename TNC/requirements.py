@@ -1,5 +1,5 @@
 tensorflow>=2.5,<3.0
-matplotlib
+plotly
 pillow
 scikit-learn>=1.0,<2.0
 statsmodels
