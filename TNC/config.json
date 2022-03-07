@@ -1,0 +1,24 @@
+{
+
+	"generator": {
+		"n_samples": 20,
+		"batch_size": 32,
+		"window_size": 4,
+        "max_window": 3
+	},
+
+	"model": {
+		"latent_size": 10,
+		"n_block_filters": [32, 32],
+		"kernel_size": 2,
+		"dropout": 0,
+		"unlabeled_weight": 0.05,
+		"disc_neurons": [10]
+	},
+
+	"training": {
+		"optimizer": "adam",
+		"epochs": 150
+	}
+
+}
