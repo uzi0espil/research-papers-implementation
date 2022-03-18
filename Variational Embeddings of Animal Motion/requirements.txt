@@ -1,0 +1,9 @@
+tensorflow
+pyvis
+networkx
+plotly
+umap-learn
+scikit-learn
+pandas
+scipy>=1.7,<2.0
+typing-extensions==4.1.1
