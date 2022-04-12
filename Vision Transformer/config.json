@@ -7,14 +7,14 @@
         "activation": "gelu",
         "to_augment": true,
         "dropout": 0.2,
-        "mlp_neuron": 64,
+        "mlp_dim": 64,
         "classification_head": [256, 128]
     },
     "training": {
         "epochs": 100,
         "optimizer": "adam",
         "loss": {
-            "class_method": "sparse_categorical_crossentropy",
+            "class_name": "SparseCategoricalCrossentropy",
             "config": {
                 "from_logits": true
             }
