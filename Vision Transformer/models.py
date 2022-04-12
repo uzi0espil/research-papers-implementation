@@ -150,7 +150,7 @@ class Augmentation(layers.Layer):
         return self.zoom(z, **kwargs)
 
 
-def build_vit(input_shape, classes, n_encoders, num_patches, d_model,
+def build_vit(input_shape, classes, n_encoders, n_patches, d_model,
               n_heads, mlp_dim=None, activation="gelu", dropout=0.2,
               to_augment=True, classification_head=(256, 128),
               return_attention_score=False):
@@ -160,7 +160,7 @@ def build_vit(input_shape, classes, n_encoders, num_patches, d_model,
 
     # patch the images into num_patches x num_patches and flatten them
     # patches = Patches(num_patches, d_model)(x)  # this can be substituted with Conv2D layer
-    patches = layers.Conv2D(filters=d_model, kernel_size=num_patches, strides=num_patches, padding="VALID")(z)
+    patches = layers.Conv2D(filters=d_model, kernel_size=n_patches, strides=n_patches, padding="VALID")(z)
     patches = layers.Reshape((patches.shape[1] * patches.shape[2], d_model))(patches)
 
     # Add class token and add positional embeddings.
