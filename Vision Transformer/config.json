@@ -1,0 +1,25 @@
+{
+    "model": {
+        "n_patches": 8,
+        "d_model": 64,
+        "n_heads": 4,
+        "n_encoders": 2,
+        "activation": "gelu",
+        "to_augment": true,
+        "dropout": 0.2,
+        "mlp_neuron": 64,
+        "classification_head": [256, 128]
+    },
+    "training": {
+        "epochs": 100,
+        "optimizer": "adam",
+        "loss": {
+            "class_method": "sparse_categorical_crossentropy",
+            "config": {
+                "from_logits": true
+            }
+        },
+        "batch_size": 32,
+        "validation_split": 0.15
+    }
+}
