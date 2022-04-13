@@ -1,6 +1,7 @@
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import cv2
 
 
 def learning_curve(histories):
@@ -29,4 +30,56 @@ def learning_curve(histories):
                           row=i + 1, col=1)
 
     fig.update_layout(height=300 * histories_count, title_text="Learning curves")
+    return fig
+
+
+def attention_mask(image, attention, normalize=True):
+    """
+
+    :param image:
+    :param attention: has shape (n_encoders, n_heads, n_patches+1, n_patches+1)
+    :param normalize: Rescale image to [0, 1].
+    :return:
+    """
+
+    if normalize:
+        image /= 255.
+
+    # take the mean over all heads
+    attention = attention.mean(axis=1)
+
+    # take care of the residual
+    ## add to identity matrix
+    attention = attention + np.eye(attention.shape[-1])
+    ## sum it for every encoder
+    attention_sum = attention.sum(axis=(1, 2))[:, np.newaxis, np.newaxis]
+    ## divide attention with attention sum per each encoder.
+    attention = attention / attention_sum
+
+    # Recursively multiply the weights
+    attention_map = attention[-1]  # take last encoder's attention
+    for encoder_att in attention[::-2]:  # reverse and skip last
+        attention_map = np.matmul(attention_map, encoder_att)
+
+    patch_size = int(np.sqrt(attention.shape[-1] - 1))  # remove token class and take the root
+    # build the attention from the class token
+    mask = attention_map[0, 1:].reshape(patch_size, patch_size)
+    normalized_mask = mask / mask.max()
+    # resize to the inputs
+    mask = cv2.resize(normalized_mask, (image.shape[1], image.shape[0]))
+    mask = mask[..., np.newaxis]  # add a channel
+
+    image = (mask * image).astype("uint8")
+
+    return image
+
+
+def attention_image(image, attention, normalize=True, **kwargs):
+    attended_image = attention_mask(image, attention, normalize=normalize)
+    fig = make_subplots(1, 2, subplot_titles=("Original", "Attention Map"))
+    fig.add_trace(go.Image(z=image), 1, 1)
+    fig.add_trace(go.Image(z=attended_image), 1, 2)
+    fig.update_layout(**kwargs)
+    fig.update_xaxes(showticklabels=False)
+    fig.update_yaxes(showticklabels=False)
     return fig
