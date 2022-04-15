@@ -164,7 +164,8 @@ class Augmentation(layers.Layer):
 
 def build_vit(input_shape, classes, n_encoders, n_patches, d_model,
               n_heads, mlp_dim=None, activation="gelu", dropout=0.2,
-              to_augment: Union[Dict, bool] = True, classification_head=(256, 128),
+              to_augment: Union[Dict, bool] = True, 
+              classification_head=(256, 128), classification_representation_activation="tanh",
               return_attention_score=False):
     if input_shape[0] % n_patches != 0:
         raise ValueError("Patches should evenly divide input image.")
@@ -194,7 +195,7 @@ def build_vit(input_shape, classes, n_encoders, n_patches, d_model,
     # extract the class token
     y = layers.Lambda(lambda v: v[:, 0])(y)
     for neurons in classification_head:
-        y = layers.Dense(neurons, activation=activation)(y)
+        y = layers.Dense(neurons, activation=classification_representation_activation)(y)
         y = layers.Dropout(dropout)(y)
     # compute the logits
     y = layers.Dense(classes)(y)
