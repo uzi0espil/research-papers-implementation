@@ -3,11 +3,10 @@ import tensorflow as tf
 from tensorflow.keras import layers
 import numpy as np
 
-from typing import Union, Dict
+from typing import Union, Dict, Tuple, Optional, List
 
 
-# -
-
+# Deprecated, instead I use Conv layer to acquire the patch embeddings.
 class Patches(layers.Layer):
     """
     This class will break images in patches (tokens) of size (batch_size, num_patch**2, channels).
@@ -162,11 +161,39 @@ class Augmentation(layers.Layer):
         return self.flip(z, **kwargs)
 
 
-def build_vit(input_shape, classes, n_encoders, n_patches, d_model,
-              n_heads, mlp_dim=None, activation="gelu", dropout=0.2,
+def build_vit(input_shape: Tuple[int, int, int],
+              classes: int,
+              n_encoders: int,
+              n_patches: int,
+              d_model: int,
+              n_heads: int,
+              mlp_dim: Optional[List[int]] = None,
+              activation: str = "gelu",
+              dropout: float = 0.1,
               to_augment: Union[Dict, bool] = True, 
-              classification_head=(256, 128), classification_representation_activation="tanh",
-              return_attention_score=False):
+              classification_head: Union[Tuple, List] = (256, 128),
+              classification_representation_activation: str = "tanh",
+              return_attention_score: bool = False):
+    """
+    Build Vision Transformer model based on the paper.
+
+    :param input_shape: Image dimension [W, H, C]
+    :param classes: Number of classes to classify.
+    :param n_encoders: Number of transformer encoder blocks
+    :param n_patches: How many patches to break the image, this will then translate to patch_size.
+    :param d_model: The constant D dimension across the transformer projections.
+    :param n_heads: Number of heads in MHA.
+    :param mlp_dim: List of neurons for the mlp head of each encoder. at the end an additional dense layer is added with
+                    neurons equal to d_model.
+    :param activation: encoder's MLP activations.
+    :param dropout: dropout rate across all dropout layers in the transformer.
+    :param to_augment: To augment the data based on BiT paper, you can pass dictionary with different parameters.
+    :param classification_head: List of neurons prior the head.
+    :param classification_representation_activation: activation used in the layers before the head.
+    :param return_attention_score: Whether to return the attention scores or not.
+                                   It has shape of [n_encoders, n_head, patch_size + 1, patch_size + 1]
+    :return: Keras Model.
+    """
     if input_shape[0] % n_patches != 0:
         raise ValueError("Patches should evenly divide input image.")
 

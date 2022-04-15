@@ -35,10 +35,11 @@ def learning_curve(histories):
 
 def attention_mask(image, attention):
     """
+    Compute the attention map as stated in section D7 and based on the paper: https://arxiv.org/pdf/2005.00928.pdf
 
-    :param image:
-    :param attention: has shape (n_encoders, n_heads, n_patches+1, n_patches+1)
-    :return:
+    :param image: The original image.
+    :param attention: the attention score of the image, it has shape (n_encoders, n_heads, patch_size+1, patch_size+1)
+    :return: attended image.
     """
     # take the mean over all heads
     attention = attention.mean(axis=1)
@@ -70,6 +71,14 @@ def attention_mask(image, attention):
 
 
 def attention_image(image, attention, **kwargs):
+    """
+    Plot the original image and the attended image side by side
+
+    :param image: the original image.
+    :param attention: the attention score of the image, it has shape (n_encoders, n_heads, patch_size+1, patch_size+1)
+    :param kwargs: Plotly layout kwargs.
+    :return: Plotly figure
+    """
     attended_image = attention_mask(image, attention)
     fig = make_subplots(1, 2, subplot_titles=("Original", "Attention Map"))
     fig.add_trace(go.Image(z=image), 1, 1)
