@@ -13,7 +13,8 @@
 		},
 		"dropout": 0.1,
 		"mlp_dim": 128,
-		"classification_head": [256, 128]
+		"classification_representation_activation": "tanh",
+		"classification_head": [128]
 	},
 	"training": {
 		"epochs": 250,

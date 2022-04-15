@@ -33,18 +33,13 @@ def learning_curve(histories):
     return fig
 
 
-def attention_mask(image, attention, normalize=True):
+def attention_mask(image, attention):
     """
 
     :param image:
     :param attention: has shape (n_encoders, n_heads, n_patches+1, n_patches+1)
-    :param normalize: Rescale image to [0, 1].
     :return:
     """
-
-    if normalize:
-        image /= 255.
-
     # take the mean over all heads
     attention = attention.mean(axis=1)
 
@@ -74,8 +69,8 @@ def attention_mask(image, attention, normalize=True):
     return image
 
 
-def attention_image(image, attention, normalize=True, **kwargs):
-    attended_image = attention_mask(image, attention, normalize=normalize)
+def attention_image(image, attention, **kwargs):
+    attended_image = attention_mask(image, attention)
     fig = make_subplots(1, 2, subplot_titles=("Original", "Attention Map"))
     fig.add_trace(go.Image(z=image), 1, 1)
     fig.add_trace(go.Image(z=attended_image), 1, 2)
