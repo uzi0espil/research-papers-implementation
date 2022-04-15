@@ -1,6 +1,12 @@
+# +
 import tensorflow as tf
 from tensorflow.keras import layers
+import numpy as np
 
+from typing import Union, Dict
+
+
+# -
 
 class Patches(layers.Layer):
     """
@@ -135,32 +141,43 @@ class TransformerBlock(layers.Layer):
 
 
 class Augmentation(layers.Layer):
+    """As per BiT Paper, in section 2.2 and F, the following preprocessing is done, which is applicable to CIFAR100: 
+    
+    - Resize to a square image (they used (64, 128, 196, 256).
+    - Crop out to a smaller random square. (training only).
+    - Horizontally flip the image. (training only).
+    """
 
-    def __init__(self, flip="horizontal", rotation_factor=0.02, zoom_factor=0.2, **kwargs):
+    def __init__(self, resize=72, flip="horizontal", crop=64, **kwargs):
         super(Augmentation, self).__init__(**kwargs)
         self.normalization = layers.Rescaling(scale=1./255)
+        self.resize = layers.Resizing(height=resize, width=resize)
+        self.crop = layers.RandomCrop(height=crop, width=crop)  # enforce square cropping.
         self.flip = layers.RandomFlip(flip)
-        self.rotation = layers.RandomRotation(factor=rotation_factor)
-        self.zoom = layers.RandomZoom(height_factor=zoom_factor, width_factor=zoom_factor)
 
     def call(self, inputs, **kwargs):
         z = self.normalization(inputs, **kwargs)
-        z = self.flip(z, **kwargs)
-        z = self.rotation(z, **kwargs)
-        return self.zoom(z, **kwargs)
+        z = self.resize(z, **kwargs)
+        z = self.crop(z, **kwargs)
+        return self.flip(z, **kwargs)
 
 
 def build_vit(input_shape, classes, n_encoders, n_patches, d_model,
               n_heads, mlp_dim=None, activation="gelu", dropout=0.2,
-              to_augment=True, classification_head=(256, 128),
+              to_augment: Union[Dict, bool] = True, classification_head=(256, 128),
               return_attention_score=False):
+    if input_shape[0] % n_patches != 0:
+        raise ValueError("Patches should evenly divide input image.")
 
     x = layers.Input(shape=input_shape)
-    z = Augmentation()(x) if to_augment else x
+    augment_kwargs = to_augment if isinstance(to_augment, dict) else dict()
+    z = Augmentation(**augment_kwargs)(x) if to_augment else x
+    
+    patch_size = int(z.shape[1] / np.sqrt(n_patches))
 
     # patch the images into num_patches x num_patches and flatten them
     # patches = Patches(num_patches, d_model)(x)  # this can be substituted with Conv2D layer
-    patches = layers.Conv2D(filters=d_model, kernel_size=n_patches, strides=n_patches, padding="VALID")(z)
+    patches = layers.Conv2D(filters=d_model, kernel_size=patch_size, strides=patch_size, padding="VALID")(z)
     patches = layers.Reshape((patches.shape[1] * patches.shape[2], d_model))(patches)
 
     # Add class token and add positional embeddings.
