@@ -118,10 +118,10 @@ class TNCModel(tf.keras.Model, ABC):
         y_true_p, y_pred_p = y_p
         y_true_n, y_pred_n = y_n
 
-        p_loss = self.compiled_loss(y_p, y_pred_p, sample_weight=sample_weight)
+        p_loss = self.compiled_loss(y_true_p, y_pred_p, sample_weight=sample_weight)
         # compute once that they are negatives and once that they are positives
-        n_loss = self.compiled_loss(y_n, y_pred_n, sample_weight=sample_weight)
-        n_loss_u = self.compiled_loss(y_n, y_pred_p, sample_weight=sample_weight)
+        n_loss = self.compiled_loss(y_true_n, y_pred_n, sample_weight=sample_weight)
+        n_loss_u = self.compiled_loss(y_true_p, y_pred_p, sample_weight=sample_weight)
 
         return (p_loss + self.unlabeled_weight * n_loss_u + (1 - self.unlabeled_weight) * n_loss) / 2
 
