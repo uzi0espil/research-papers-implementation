@@ -2,14 +2,21 @@ from tensorflow.keras.utils import Sequence
 import numpy as np
 from statsmodels.tsa.stattools import adfuller
 import math
-from typing import Optional
+from typing import Optional, Union, Tuple, List
 
 np.seterr(divide='ignore')
 
 
 class TNCGenerator(Sequence):
 
-    def __init__(self, X, batch_size, n_samples, window_size, max_window=3, shuffle=True, state=None):
+    def __init__(self, 
+                 X: np.ndarray,
+                 batch_size: int,
+                 n_samples: Union[int, Tuple[int, int], List[int]],
+                 window_size: int, 
+                 max_window: int = 3, 
+                 shuffle: bool = True,
+                 state: Optional[int] = None):
         super(Sequence, self).__init__()
         self.X = X  # shape: [trips, timesteps, n_features]
         self.T = X.shape[1]
@@ -17,6 +24,8 @@ class TNCGenerator(Sequence):
         self.window_size = window_size
         self.max_window = max_window
         self.n_samples = n_samples
+        self.n_samples_positive = n_samples if not isinstance(n_samples, (tuple, list)) else n_samples[0]
+        self.n_samples_negative = n_samples if not isinstance(n_samples, (tuple, list)) else n_samples[1]
         self.state = state
         self.shuffle = shuffle
 
@@ -51,15 +60,17 @@ class TNCGenerator(Sequence):
             batch_x_distant.append(self._get_non_neighbors(self.X[index], t))
 
         # X
-        batch_x_t = np.repeat(batch_x_t, self.n_samples, axis=0)  # (batch_size * n_samples, window_size, n_features)
-        batch_x_close = np.asarray(batch_x_close).reshape(batch_x_t.shape)
-        batch_x_distant = np.asarray(batch_x_distant).reshape(batch_x_t.shape)
+        # batch_x_t => (batch_size * n_samples, window_size, n_features)
+        batch_x_t = np.repeat(batch_x_t, max(self.n_samples_negative, self.n_samples_positive), axis=0)
+        batch_x_close = np.asarray(batch_x_close).reshape((-1, self.window_size, self.X.shape[-1]))
+        batch_x_distant = np.asarray(batch_x_distant).reshape((-1, self.window_size, self.X.shape[-1]))
 
         # y
+        y_pu = np.ones((batch_x_distant.shape[0],))
         y_neighbors = np.ones((batch_x_close.shape[0],))
         y_non_neighbors = np.zeros((batch_x_distant.shape[0],))
 
-        return (batch_x_t, batch_x_close, batch_x_distant), (y_neighbors, y_non_neighbors), None
+        return (batch_x_t, batch_x_close, batch_x_distant), (y_pu, y_neighbors, y_non_neighbors), None
 
     def _get_neighbor(self, x, t):
         """Sample n_samples from neighborhood of point t in timeseries x where the neighborhood length is determined by ADF
@@ -93,7 +104,7 @@ class TNCGenerator(Sequence):
         # after determining the length of neighborhood based on ADF, time to randomly pick n_samples from the trip
         center = self.window_size // 2
         # add t to a Gaussian random multiplied by epsilon that is set by ADF and window_size.
-        t_p = [int(t + np.random.randn() * self.epsilon * self.window_size) for _ in range(self.n_samples)]
+        t_p = [int(t + np.random.randn() * self.epsilon * self.window_size) for _ in range(self.n_samples_positive)]
         t_p = [max(center + 1, min(t_pp, T - (center + self._right_padding))) for t_pp in t_p]
         x_p = np.stack([x[t_ind - center:t_ind + center + self._right_padding, :] for t_ind in t_p])
         return x_p
@@ -102,9 +113,9 @@ class TNCGenerator(Sequence):
         T = self.X.shape[-2]
         center = self.window_size // 2
         if t > T / 2:  # will get windows prior to t
-            t_n = np.random.randint(center, max((t - self.delta + 1), center + 1), self.n_samples)
+            t_n = np.random.randint(center, max((t - self.delta + 1), center + 1), self.n_samples_negative)
         else:  # will get windows post to time t.
-            t_n = np.random.randint(min((t + self.delta), (T - self.window_size - 1)), (T - center), self.n_samples)
+            t_n = np.random.randint(min((t + self.delta), (T - self.window_size - 1)), (T - center), self.n_samples_negative)
         x_n = np.stack([x[t_ind - center:t_ind + center + self._right_padding, :] for t_ind in t_n])
 
         if len(x_n) == 0:  # if failed, then take anything within the window_size
