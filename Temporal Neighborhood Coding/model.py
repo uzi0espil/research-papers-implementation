@@ -1,4 +1,5 @@
 from abc import ABC
+from typing import List
 
 import tensorflow as tf
 from tensorflow.python.keras.engine import data_adapter
@@ -74,14 +75,28 @@ class Discriminator(tf.keras.layers.Layer, ABC):
 
 
 class TNCModel(tf.keras.Model, ABC):
-
+    """Temporal Neighboring Contrastive Algorithm that consists of Temporal Convolutional Encoder and a Discriminator.
+    The inputs to the algorithm are generated using `TNCGenerator`, the training parameters are all set based
+    on best practices of TNC paper.
+    
+    :param latent_size: The latent size of the encoder.
+    :param temporal_blocks_filter: list of blocks in encoder where each entry is the number of filters of that block
+    :param disc_neurons: list of layers in discriminator where each entry is the number of neurons of tha layer.
+    :param kernel_size: Kernel size of the temporal block.
+    :param strides: Strides of the temporal block.
+    :param dropout: Encoder and Decoder dropout rate.
+    :param unlabeled_weight: the weight applied for unlabeled samples (negative samples) in the loss function.
+    """
     def __init__(self,
-                 i_shape, latent_size,
-                 n_block_filters, kernel_size, unlabeled_weight,
-                 disc_neurons, strides=1, dropout=0.2):
+                 latent_size: int,
+                 n_block_filters: List[int],
+                 disc_neurons: List[int],
+                 kernel_size: int,
+                 unlabeled_weight: float,
+                 strides: int = 1,
+                 dropout: float = 0.2):
         super(TNCModel, self).__init__()
         self.latent_size = latent_size
-        self.i_shape = i_shape
         self.unlabeled_weight = unlabeled_weight
         self.encoder = Encoder(latent_size, n_block_filters, kernel_size, strides, dropout)
         self.disc = Discriminator(disc_neurons, dropout)
@@ -105,7 +120,7 @@ class TNCModel(tf.keras.Model, ABC):
             inputs = inputs[0]
         return self.encoder(inputs, **kwargs)
 
-    def _contrastive_loss(self, y_p, y_n, sample_weight=None):
+    def _contrastive_loss(self, y_p, y_n, y_pu, sample_weight=None):
         """
         Loss function based on Positive Unlabeled debaising technique where we treat the 
         negative samples as neutral samples where it can be seen as negative samples that 
@@ -121,24 +136,24 @@ class TNCModel(tf.keras.Model, ABC):
         p_loss = self.compiled_loss(y_true_p, y_pred_p, sample_weight=sample_weight)
         # compute once that they are negatives and once that they are positives
         n_loss = self.compiled_loss(y_true_n, y_pred_n, sample_weight=sample_weight)
-        n_loss_u = self.compiled_loss(y_true_p, y_pred_p, sample_weight=sample_weight)
+        n_loss_u = self.compiled_loss(y_pu, y_pred_n, sample_weight=sample_weight)
 
         return (p_loss + self.unlabeled_weight * n_loss_u + (1 - self.unlabeled_weight) * n_loss) / 2
 
     def train_step(self, data):
         X_all, y_all, sample_weight = data_adapter.unpack_x_y_sample_weight(data)
         X, X_p, X_n = X_all
-        y_p, y_n = y_all
+        y_pu, y_p, y_n = y_all
 
         with tf.GradientTape() as tape:
             t_embedding = self(X, training=True)
             p_embedding = self(X_p, training=True)
             n_embedding = self(X_n, training=True)
 
-            y_pred_p = self.disc(tf.concat([t_embedding, p_embedding], axis=-1), training=True)
-            y_pred_n = self.disc(tf.concat([t_embedding, n_embedding], axis=-1), training=True)
+            y_pred_p = self.disc(tf.concat([t_embedding[:tf.shape(X_p)[0]], p_embedding], axis=-1), training=True)
+            y_pred_n = self.disc(tf.concat([t_embedding[:tf.shape(X_n)[0]], n_embedding], axis=-1), training=True)
 
-            loss = self._contrastive_loss((y_p, y_pred_p), (y_n, y_pred_n), sample_weight=sample_weight)
+            loss = self._contrastive_loss((y_p, y_pred_p), (y_n, y_pred_n), y_pu, sample_weight=sample_weight)
 
         all_trainable_variables = self.encoder.trainable_weights + self.disc.trainable_weights
         self.optimizer.minimize(loss, all_trainable_variables, tape=tape)
@@ -146,29 +161,29 @@ class TNCModel(tf.keras.Model, ABC):
         # update contrastive loss
         self.contrastive_loss.update_state(loss)
         self.p_acc.update_state(y_p, y_pred_p > 0.5)
-        self.n_acc.update_state(y_p, y_pred_n < 0.5)
+        self.n_acc.update_state(y_pu, y_pred_n < 0.5)
 
         return {m.name: m.result() for m in self.metrics}
 
     def test_step(self, data):
         X_all, y_all, sample_weight = data_adapter.unpack_x_y_sample_weight(data)
         X, X_p, X_n = X_all
-        y_p, y_n = y_all
+        y_pu, y_p, y_n = y_all
 
         # compute the embeddings
         t_embedding = self(X, training=False)
         p_embedding = self(X_p, training=False)
         n_embedding = self(X_n, training=False)
 
-        y_pred_p = self.disc(tf.concat([t_embedding, p_embedding], axis=-1), training=False)
-        y_pred_n = self.disc(tf.concat([t_embedding, n_embedding], axis=-1), training=False)
+        y_pred_p = self.disc(tf.concat([t_embedding[:tf.shape(X_p)[0]], p_embedding], axis=-1), training=False)
+        y_pred_n = self.disc(tf.concat([t_embedding[:tf.shape(X_n)[0]], n_embedding], axis=-1), training=False)
 
         # compute the loss
-        loss = self._contrastive_loss((y_p, y_pred_p), (y_n, y_pred_n), sample_weight=sample_weight)
+        loss = self._contrastive_loss((y_p, y_pred_p), (y_n, y_pred_n), y_pu, sample_weight=sample_weight)
 
         # update validation metrics
         self.contrastive_loss.update_state(loss)
         self.p_acc.update_state(y_p, y_pred_p > 0.5)
-        self.n_acc.update_state(y_p, y_pred_n < 0.5)
+        self.n_acc.update_state(y_pu, y_pred_n < 0.5)
 
         return {m.name: m.result() for m in self.metrics}
