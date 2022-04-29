@@ -14,3 +14,8 @@ The purpose of this repository is to re-implement the models of research papers 
 | [Temporal Neighborhood Coding](https://github.com/uzi0espil/research-papers-implementation/tree/master/Temporal%20Neighborhood%20Coding)               |    |     | ✅          |            | ✅            |            |
 | [Variational Embeddings Animal Motion](https://github.com/uzi0espil/research-papers-implementation/tree/master/Variational%20Embeddings%20of%20Animal%20Motion)       |    |     | ✅          |            | ✅            | ✅          |
 | [Vision Transformer](https://github.com/uzi0espil/research-papers-implementation/tree/master/Vision%20Transformer)                         | ✅  |     |            | ✅          |              |            |
+| [DINO](https://github.com/uzi0espil/research-papers-implementation/tree/master/DINO%3A%20Emerging%20Properties%20in%20Self-Supervised%20Vision%20Transformers)                         | ✅  |     |            |           | ✅             |            |
+
+```python
+
+```
